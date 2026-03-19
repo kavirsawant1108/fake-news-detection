@@ -6,6 +6,8 @@ export const config = {
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -13,17 +15,15 @@ const corsHeaders = {
 };
 
 serve(async (req: Request): Promise<Response> => {
-  // Handle CORS preflight request
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    // Parse request body
     const body = await req.json();
     const text = body?.text;
 
-    if (!text || text.trim().length === 0) {
+    if (!text) {
       return new Response(
         JSON.stringify({ error: "No text provided" }),
         {
@@ -33,50 +33,65 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // 🔵 MOCK FAKE NEWS ANALYSIS LOGIC
-    // Simple demo logic for your project
+    // 🔵 Prompt for Gemini
+    const prompt = `
+You are a fake news detector.
 
-    let prediction = "real";
-    let confidence = 75;
-    let sensationalism = 3;
-    let bias = 4;
-    let factuality = 7;
-    let source_quality = 6;
-    let reasoning = "The article appears neutral and does not use extreme language.";
+Analyze the news text and return JSON only in this format:
 
-    // Very simple keyword-based demo logic
-    const lowerText = text.toLowerCase();
+{
+  "prediction": "real or fake",
+  "confidence": number,
+  "reasoning": "text",
+  "sensationalism": number,
+  "bias": number,
+  "factuality": number,
+  "source_quality": number
+}
 
-    if (
-      lowerText.includes("shocking") ||
-      lowerText.includes("aliens") ||
-      lowerText.includes("breaking!!!") ||
-      lowerText.includes("secret revealed")
-    ) {
-      prediction = "fake";
-      confidence = 88;
-      sensationalism = 8;
-      bias = 7;
-      factuality = 3;
-      source_quality = 4;
-      reasoning =
-        "The article contains sensational language and extraordinary claims without evidence.";
+News:
+${text}
+`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: prompt }],
+            },
+          ],
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    const aiText =
+      data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    let result;
+
+    try {
+      result = JSON.parse(aiText);
+    } catch {
+      result = {
+        prediction: "real",
+        confidence: 60,
+        reasoning: aiText,
+        sensationalism: 5,
+        bias: 5,
+        factuality: 5,
+        source_quality: 5,
+      };
     }
 
-    const result = {
-      prediction,
-      confidence,
-      reasoning,
-      indicators: {
-        sensationalism,
-        bias,
-        factuality,
-        source_quality,
-      },
-    };
-
     return new Response(JSON.stringify(result), {
-      status: 200,
       headers: {
         ...corsHeaders,
         "Content-Type": "application/json",
@@ -84,12 +99,8 @@ serve(async (req: Request): Promise<Response> => {
     });
 
   } catch (err) {
-    console.error("Function Error:", err);
-
     return new Response(
-      JSON.stringify({
-        error: err instanceof Error ? err.message : "Unknown error",
-      }),
+      JSON.stringify({ error: err.message }),
       {
         status: 500,
         headers: {
