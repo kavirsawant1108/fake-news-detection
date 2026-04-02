@@ -21,13 +21,14 @@ const Auth = () => {
   const [fullName, setFullName] = useState("");
 
   useEffect(() => {
-    // Check if user is already logged in
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session) {
+      if (window.location.hostname === "localhost") {
         navigate("/");
       }
-    });
-  }, [navigate]);
+    }
+  });
+}, [navigate]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,16 +66,27 @@ const Auth = () => {
 
     setLoading(true);
     
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/`,
-        data: {
-          full_name: fullName,
-        },
-      },
-    });
+    const getRedirectUrl = () => {
+  const host = window.location.hostname;
+
+  if (host === "localhost") {
+    return "http://localhost:5173/";
+  }
+
+  // GitHub Pages URL
+  return "https://kavirsawant1108.github.io/my-news-detector-main/";
+};
+
+const { error } = await supabase.auth.signUp({
+  email,
+  password,
+  options: {
+    emailRedirectTo: getRedirectUrl(),
+    data: {
+      full_name: fullName,
+    },
+  },
+});
 
     setLoading(false);
 

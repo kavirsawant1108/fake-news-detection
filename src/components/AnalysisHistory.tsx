@@ -24,26 +24,38 @@ const AnalysisHistory = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchAnalyses = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("analyses")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(20);
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (error) throw error;
-      setAnalyses((data || []) as Analysis[]);
-    } catch (error) {
-      console.error("Error fetching analyses:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load analysis history",
-        variant: "destructive",
-      });
-    } finally {
+    if (!user) {
+      setAnalyses([]);
       setLoading(false);
+      return;
     }
-  };
+
+    const { data, error } = await supabase
+      .from("analyses")
+      .select("*")
+      .eq("user_id", user.id)   // ✅ IMPORTANT
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error) throw error;
+
+    setAnalyses((data || []) as Analysis[]);
+  } catch (error) {
+    console.error(error);
+    toast({
+      title: "Error",
+      description: "Failed to load history",
+      variant: "destructive",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchAnalyses();
